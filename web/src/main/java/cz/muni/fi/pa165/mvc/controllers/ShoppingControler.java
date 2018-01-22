@@ -3,22 +3,24 @@ package cz.muni.fi.pa165.mvc.controllers;
 import cz.muni.fi.pa165.pneuservis.backend.enums.SeasonEnum;
 import cz.muni.fi.pa165.pneuservis.backend.enums.SpeedClassEnum;
 import cz.muni.fi.pa165.pneuservis.backend.enums.VehicleTypeEnum;
-import dto.TireDTO;
-import dto.TireManufacturerDTO;
-import dto.TirePropertiesDTO;
+import dto.*;
+import facade.CustomerFacade;
+import facade.OrderFacade;
+import facade.OrderItemFacade;
 import facade.TireFacade;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.util.*;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -31,16 +33,22 @@ import javax.servlet.http.HttpServletResponse;
  */
 @Controller
 @RequestMapping("/shopping")
-public class ShoppingControler {
+public class ShoppingControler extends CommonController {
 
     final static Logger log = LoggerFactory.getLogger(ShoppingControler.class);
 
     @Inject
     private TireFacade tireFacade;
-    
+    @Inject
+    private OrderFacade orderFacade;
+    @Inject
+    private CustomerFacade customerFacade;
+    @Inject
+    private OrderItemFacade orderItemFacade;
+    /*
     @Inject
     private HttpServletRequest request;
-
+     */
     @RequestMapping("/show")
     public String list(Model model) {
 
@@ -89,25 +97,51 @@ public class ShoppingControler {
         return "shopping/product";
     }
 
-    //WHY ID DOES NOT WORK
     @RequestMapping("/filter")
-    public String filter(Model model) {
-        //VehicleTypeEnum vehiclType = VehicleTypeEnum.valueOf(request.getParameter("s_vehicle"));
-//        int width = Integer.parseInt(request.getParameter("s_width"));
-//        int aspectRatio = Integer.parseInt(request.getParameter("s_aspectRatio"));
-//        int diameter = Integer.parseInt(request.getParameter("s_diameter"));
-//        int loadIndex = Integer.parseInt(request.getParameter("s_loadIndex"));
-        //SpeedClassEnum speedClass = SpeedClassEnum.valueOf(request.getParameter("s_speed"));
-        //SeasonEnum season = SeasonEnum.valueOf(request.getParameter("s_speed"));
-//        String manufName = request.getParameter("s_manuf");
+    public String filter(Model model, HttpServletRequest request) {
+  
+        VehicleTypeEnum vehiclType = (request.getParameter("s_vehicle").equals("")) ? null : VehicleTypeEnum.valueOf(request.getParameter("s_vehicle"));
+        int width = (request.getParameter("s_width").equals("")) ? 0 : Integer.parseInt(request.getParameter("s_width"));
+        int aspectRatio = (request.getParameter("s_aspectRatio").equals("")) ? 0 : Integer.parseInt(request.getParameter("s_aspectRatio"));
+        int diameter = (request.getParameter("s_diameter").equals("")) ? 0 : Integer.parseInt(request.getParameter("s_diameter"));
+        int loadIndex = (request.getParameter("s_loadIndex").equals("")) ? 0 : Integer.parseInt(request.getParameter("s_loadIndex"));
+        SpeedClassEnum speedClass = (request.getParameter("s_speed").equals("")) ? null : SpeedClassEnum.valueOf(request.getParameter("s_speed"));
+        SeasonEnum season = (request.getParameter("s_season").equals("")) ? null : SeasonEnum.valueOf(request.getParameter("s_season"));
+        String manufName = (request.getParameter("s_manuf").equals("")) ? null : request.getParameter("s_manuf");
+
+        TirePropertiesDTO tp = new TirePropertiesDTO(vehiclType, width, aspectRatio, diameter, loadIndex, speedClass, season);
+        TireManufacturerDTO tm = manufName == null ? null : new TireManufacturerDTO(manufName);
+        tm = null;
         
-        //TirePropertiesDTO tp = new TirePropertiesDTO(vehiclType, width, aspectRatio, diameter, loadIndex, speedClass, season);
-        //TireManufacturerDTO tm = new TireManufacturerDTO(manufName);
-        
-        List<TireDTO> tires = tireFacade.findTireByProperties(null, null);
+        List<TireDTO> tires = tireFacade.findTireByProperties(tm, tp);
         model.addAttribute("tires", tires);
 
         return "shopping/filter";
+    }
+
+    @RequestMapping(value = "/product/{id}/buy", method = RequestMethod.POST)
+    public String buy(@PathVariable long id, @ModelAttribute("quantity") long items, Model model,  UriComponentsBuilder uriComponentsBuilder) {
+        CustomerDTO customerDTO = user();
+        List<OrderDTO> orders = orderFacade.findAllOrdersOfCustomer(customerDTO);
+        OrderDTO orderDTO;
+        if (orders.size() == 0) {
+            orderDTO = new OrderDTO();
+            orderDTO.setOrderItems(new ArrayList<>());
+            orderDTO.setDate(LocalDateTime.now());
+            orderDTO.setCustomer(customerDTO);
+            orderFacade.create(orderDTO);
+        } else {
+            orderDTO = orders.get(0);
+        }
+        OrderItemDTO orderItemDTO = new OrderItemDTO();
+        orderItemDTO.setService(null);
+        orderItemDTO.setTire(tireFacade.getByID(id));
+        orderItemDTO.setQuantity(items);
+        orderItemFacade.create(orderItemDTO);
+//        List<OrderItemDTO> orderItemDTOS = new ArrayList<>(orderDTO.getOrderItems());
+        orderDTO.getOrderItems().add(orderItemDTO);
+        orderFacade.update(orderDTO);
+        return "redirect:" + uriComponentsBuilder.path("/shopping/show").toUriString();
     }
 
 }

@@ -39,10 +39,19 @@
                 
                 <li><my:a href="/shopping/show"><f:message key="navigation.tires"/></my:a></li>
                 <li><my:a href="/services"><f:message key="navigation.service"/></my:a></li>
-                <li><my:a href="/user/list"><f:message key="navigation.customer"/></my:a></li>
+                <li><my:a href="/customer"><f:message key="navigation.customer"/></my:a></li>
                 <li><my:a href="/order/list"><f:message key="navigation.order"/></my:a></li>
                 <%--<li><my:a href="/cart/{id}"><f:message key="navigation.cart"/></my:a></li>--%>
 
+
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+                <c:if test="${not isAuthernticated}">
+                    <li><my:a href="/login"><f:message key="login.title"/></my:a> </li>
+                </c:if>
+                <c:if test="${isAuthernticated}">
+                    ${user.name} ${user.surname}
+                </c:if>
             </ul>
         </div>
        
